@@ -1,8 +1,8 @@
-# 🌤️ WeatherGNN: Scientist-in-the-Loop Spatial-Temporal Forecasting
+#  WeatherGNN: Scientist-in-the-Loop Spatial-Temporal Forecasting
 
 
 
-## 📖 1. The Forecasting Challenge & Core Idea
+##  1. The Forecasting Challenge & Core Idea
 Meteorological forecasting is a notoriously complex problem governed by non-linear fluid dynamics and thermodynamics. Traditional deep learning approaches (like LSTMs or standard CNNs) excel at finding patterns over time, but they treat every weather station as an isolated island. 
 
 In reality, weather is dictated by **Spatial Advection**—a cold front hitting Station A will physically travel across the map and hit Station B a few hours later. If a neural network doesn't know the geographic and topographical relationship between Station A and Station B, it is forecasting blind.
@@ -11,7 +11,7 @@ In reality, weather is dictated by **Spatial Advection**—a cold front hitting 
 
 ---
 
-## 📡 2. Data Acquisition: CIMIS & NASA
+##  2. Data Acquisition: CIMIS & NASA
 ### The Nodes: CIMIS Weather Stations
 We collected raw, hourly meteorological data from **41 active weather stations** managed by the California Irrigation Management Information System (CIMIS). 
 * **Features Collected:** Temperature, Dew Point, Humidity, Precipitation, Solar Radiation, Soil Temperature, Wind Speed, Wind Direction, and Evapotranspiration (ETo).
@@ -22,7 +22,7 @@ Weather doesn't travel in a straight vacuum. A mountain range between two statio
 
 ---
 
-## 🤖 3. "Scientist-in-the-Loop" Graph Creation
+##  3. "Scientist-in-the-Loop" Graph Creation
 Instead of relying on a naive Euclidean distance formula to connect our weather stations in a graph, we designed a pipeline that replicates the thought process of a human meteorologist.
 
 1. **Visual Context Gathering**
@@ -44,7 +44,7 @@ Instead of relying on a naive Euclidean distance formula to connect our weather 
 
 ---
 
-## 🧹 4. Data Engineering & Cleansing
+##  4. Data Engineering & Cleansing
 Rigorous time-series forecasting requires bulletproof data integrity to prevent data leakage.
 * **Imputation:** Linear interpolation was used to handle occasional sensor dropouts.
 * **The Data Cube:** The tabular data was stacked into a massive 3D Spatio-Temporal tensor: `[41 Nodes, 8832 Hours, 9 Features]`.
@@ -52,7 +52,7 @@ Rigorous time-series forecasting requires bulletproof data integrity to prevent 
 
 ---
 
-## 🧠 5. Model Architectures
+##  5. Model Architectures
 We predict the weather at `t+48` based on a 48-hour historical window (`t` to `t+47`).
 
 ### Baseline: The `TemporalCNN`
@@ -68,7 +68,7 @@ This model shares the exact same dual-path temporal encoder, but adds a crucial 
 
 ---
 
-## 📊 6. High-Level Results
+##  6. High-Level Results
 We ran a Random Search over a hyperparameter grid (Hidden Dimensions, Learning Rates, GNN Layers) paired with Early Stopping. The models were evaluated using Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and R-Squared ($R^2$), and implicitly compared against a **Naive Persistence Baseline** (which assumes tomorrow's weather will be identical to today's) before directly comparing the pure `TemporalCNN` and the graph-enhanced `Balanced_HSTGNN`.
 
 **Key Findings:**
