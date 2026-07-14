@@ -1,58 +1,92 @@
-import os
 import requests
-import pandas as pd
-from PIL import Image
-from io import BytesIO
+import base64
+import os
+import time
+import urllib3
 
-def download_satellite_image(lat, lon, station_id, zoom=8, size=512, date="2024-07-01", save_dir="data/satellite"):
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+# Disable unverified HTTPS warnings for clean console output
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    base_url = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
-    delta = 0.5 / zoom 
-    bbox = f"{lon - delta},{lat - delta},{lon + delta},{lat + delta}"
-
-    params = {
-        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-        "LAYERS": "MODIS_Terra_CorrectedReflectance_TrueColor",
-        "TIME": date, "CRS": "EPSG:4326", "BBOX": bbox,
-        "WIDTH": size, "HEIGHT": size, "FORMAT": "image/jpeg"
+def download_cimis_station_images():
+    """
+    Downloads weather station images (North, South, East, West) from the modern CIMIS API.
+    The images are returned as raw base64 strings and are decoded and saved locally.
+    """
+    # The subscription key used by the modern CIMIS frontend to access the API
+    headers = {
+        'ocp-apim-subscription-key': '4fd07064a189429baf69cdefb98df8f3',
+        'accept': 'application/json',
+        'user-agent': 'Mozilla/5.0'
     }
-
-    try:
-        response = requests.get(base_url, params=params, timeout=15)
-        if "image" in response.headers.get("Content-Type", "").lower():
-            img = Image.open(BytesIO(response.content))
-            filename = f"station_{station_id}_satellite.jpg"
-            img.save(os.path.join(save_dir, filename))
-            return True
-    except Exception as e:
-        pass
-    return False
-
-def download_cimis_site_photos(station_id, save_dir="data/station_images"):
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    
+    # Unified list of target CIMIS station IDs from Data_Collection.ipynb
+    target_ids = [
+        106, 103, 158, 83, 77, 144, 187, 157, 213, 178, 170,
+        250, 226, 6, 139, 235, 212, 140, 247, 47, 242, 243, 248,
+        254, 171, 191, 253, 104, 211,
+        195, 13, 228, 227, 262, 131, 84, 70, 249, 71, 194, 206
+    ]
+    
+    output_dir = 'cimis_images'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"Created directory: {output_dir}")
         
-    direction_map = {'North': 'Nt', 'South': 'St', 'East': 'Et', 'West': 'Wt'}
-    padded_id = str(station_id).zfill(3)
-    base_url = "https://cimis.water.ca.gov/App_Themes/Images/Stations"
-
-    for direction_name, suffix in direction_map.items():
-        img_name = f"{padded_id}{suffix}.jpg"
-        url = f"{base_url}/{img_name}"
+    print(f"Fetching images for {len(target_ids)} stations from production API...")
+    found_count = 0
+    
+    for st_id in target_ids:
+        # The production API endpoint for fetching station details
+        url = f"https://et.water.ca.gov/ApiWeb/GetStationByStationId?stationId={st_id}"
         
         try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                local_name = f"{station_id}_{direction_name}.jpg"
-                with open(os.path.join(save_dir, local_name), 'wb') as f:
-                    f.write(response.content)
-        except Exception:
-            pass
+            r = requests.get(url, headers=headers, verify=False, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                images = data.get('StationImages')
+                
+                # Check if the station has an array of images attached
+                if images and isinstance(images, list):
+                    for img_obj in images:
+                        image_data = img_obj.get('Image', '')
+                        desc = img_obj.get('Description', 'Unknown').replace('/', '_').replace(' ', '_')
+                        
+                        if image_data:
+                            # If the image string has the standard data URI prefix, strip it off
+                            if 'base64,' in image_data:
+                                base64_str = image_data.split('base64,', 1)[1]
+                            else:
+                                base64_str = image_data
+                                
+                            try:
+                                img_bytes = base64.b64decode(base64_str)
+                                
+                                # Default to jpg, simple check for png headers
+                                ext = 'jpg'
+                                if base64_str.startswith('iVBORw'):
+                                    ext = 'png'
+                                
+                                file_path = os.path.join(output_dir, f"{st_id}_{desc}.{ext}")
+                                with open(file_path, 'wb') as f:
+                                    f.write(img_bytes)
+                                    
+                                found_count += 1
+                                print(f"Saved image for station {st_id} ({desc})")
+                                
+                            except Exception as e:
+                                print(f"Error decoding image for station {st_id}: {e}")
+                else:
+                    print(f"No images available in the database for station {st_id}")
+            else:
+                print(f"Failed to fetch station {st_id}: API returned status code {r.status_code}")
+                
+        except Exception as e:
+            print(f"Connection error fetching station {st_id}: {e}")
+            
+        # Small delay to prevent API rate limiting
+        time.sleep(0.2)
+        
+    print(f"\nTotal images downloaded and saved: {found_count}")
 
-registry_df = pd.read_csv("data/station_registry.csv")
-for _, row in registry_df.iterrows():
-    download_satellite_image(row['Lat'], row['Lon'], row['ID'])
-    download_cimis_site_photos(row['ID'])
-print("Images downloaded!")
+if __name__ == "__main__":
+    download_cimis_station_images()
