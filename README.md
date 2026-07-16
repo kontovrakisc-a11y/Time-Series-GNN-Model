@@ -2,6 +2,7 @@
 
 
 
+
 ##  1. The Forecasting Challenge & Core Idea
 Meteorological forecasting is a notoriously complex problem governed by non-linear fluid dynamics and thermodynamics. Traditional deep learning approaches (like LSTMs or standard CNNs) excel at finding patterns over time, but they treat every weather station as an isolated island. 
 
